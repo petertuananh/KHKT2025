@@ -1,0 +1,343 @@
+generator client {
+    provider        = "prisma-client-js" //prisma-client-js
+    previewFeatures = ["fullTextSearch", "omitApi", "prismaSchemaFolder"]
+    // output          = "./src/prisma/_merged.prisma"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = "postgresql://postgres:postgres@db:5432/khkt2025?schema=public"
+}
+
+enum UserFlags {
+    ADMIN
+    BOT
+    BANNED
+    VERIFIED
+}
+
+enum UserStatus {
+    offline
+    online
+    idle
+}
+
+enum TransactionStatuses {
+    pending
+    finished
+    cancelled
+}
+
+enum UserTransactionTypes {
+    topup
+    withdraw
+    transfer
+    payment
+    refund
+}
+
+enum CompanyTransactionTypes {
+    income
+    expense
+    withdraw
+    refund
+    fee
+}
+
+enum OrderStatuses {
+    pending
+    paid
+    cancelled
+}
+
+model Users {
+    id                    String                 @id @db.VarChar(255)
+    username              String                 @unique
+    email                 String?                @unique(map: "email") @db.VarChar(255)
+    phone_number          String?                @unique(map: "phone_number") @db.VarChar(20)
+    display_name          String?
+    hashed_password       String?                @db.VarChar(255)
+    avatar_file_id        String?                @db.VarChar(255)
+    google_id             String?                @unique(map: "google_id") @db.VarChar(255)
+    created_at            DateTime               @default(now())
+    modified_at           DateTime               @updatedAt
+    status                UserStatus             @default(offline)
+    last_active_at        DateTime?
+    bot_token             String?                @db.VarChar(255)
+    flags                 UserFlags[]            @default([])
+    balance               Float                  @default(0.0)
+    companies             Companies[]
+    company_recruitments  CompanyRecruitments[]
+    company_deliveries    CompanyDeliveries[]
+    company_scrapes       CompanyScrapes[]
+    chats                 Chats[]                @relation("UserChats")
+    messages              Messages[]
+    message_seens         Message_seens[]
+    message_reactions     Message_reactions[]
+    places                Places[]               @relation("PlaceUser")
+    places_creates        Places[]               @relation("PlaceCreator")
+    files                 Files[]
+    carts                 Carts[]
+    transactions          User_transactions[]
+    received_transactions User_transactions[]    @relation("UserReceived")
+    orders                Orders[]
+    company_transactions  Company_transactions[]
+}
+
+model Companies {
+    id                 String                 @id @db.VarChar(255)
+    tax_id             String?                @db.VarChar(100)
+    name               String
+    international_name String?                @db.VarChar(255)
+    short_name         String?                @db.VarChar(100)
+    description        String?
+    address            String?
+    phone              String?                @db.VarChar(20)
+    email              String?                @db.VarChar(255)
+    website            String?
+    owned_by           String                 @db.VarChar(255)
+    owner              Users                  @relation(fields: [owned_by], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    is_active          Boolean                @default(true)
+    is_verified        Boolean                @default(false)
+    is_deleted         Boolean                @default(false)
+    logo_file_id       String?                @db.VarChar(255)
+    balance            Float                  @default(0.0)
+    created_at         DateTime               @default(now())
+    modified_at        DateTime               @updatedAt
+    recruitments       CompanyRecruitments[]
+    deliveries         CompanyDeliveries[]
+    scrapes            CompanyScrapes[]
+    places             Places[]
+    transactions       Company_transactions[]
+    user_transactions  User_transactions[]
+}
+
+model Places {
+    id          String  @id @db.VarChar(255)
+    name        String
+    description String?
+    address     String?
+    phone       String? @db.VarChar(20)
+    latitude    Float?
+    longitude   Float?
+
+    company_id String?    @db.VarChar(255)
+    company    Companies? @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+    user_id String? @db.VarChar(255)
+    user    Users?  @relation(name: "PlaceUser", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+    creator_id String @db.VarChar(255)
+    creator    Users  @relation(name: "PlaceCreator", fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+    created_at  DateTime   @default(now())
+    modified_at DateTime   @updatedAt
+    products    Products[]
+}
+
+model Products {
+    id          String  @id @db.VarChar(255)
+    name        String
+    description String?
+    price       Float
+    stock       Float
+    unit_type   String  @db.VarChar(100)
+    place_id    String  @db.VarChar(255)
+    place       Places  @relation(fields: [place_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+    files       Files[]             @relation("ProductFiles")
+    category    Product_categories? @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    category_id String?             @db.VarChar(255)
+
+    created_at  DateTime @default(now())
+    modified_at DateTime @updatedAt
+    carts       Carts[]
+}
+
+model Product_categories {
+    id          String     @id @db.VarChar(255)
+    name        String
+    description String?
+    products    Products[]
+    created_at  DateTime   @default(now())
+    modified_at DateTime   @updatedAt
+}
+
+model Files {
+    id   String @id @db.VarChar(255)
+    name String @db.VarChar(255)
+
+    user_id String @db.VarChar(255)
+    user    Users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+    order      Int       @default(0)
+    product_id String?   @db.VarChar(255)
+    product    Products? @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: Cascade, name: "ProductFiles")
+
+    created_at  DateTime @default(now())
+    modified_at DateTime @updatedAt
+}
+
+model User_transactions {
+    id String @id @db.VarChar(255)
+
+    user_id String
+    user    Users  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+    to_user_id String?
+    to_user    Users?  @relation("UserReceived", fields: [to_user_id], references: [id])
+
+    to_company_id String?
+    to_company    Companies? @relation(fields: [to_company_id], references: [id])
+
+    order_id String?
+    order    Orders? @relation(fields: [order_id], references: [id])
+
+    amount Decimal @db.Decimal(18, 2)
+
+    type   UserTransactionTypes
+    status TransactionStatuses
+
+    note String?
+
+    created_at  DateTime @default(now())
+    modified_at DateTime @updatedAt
+}
+
+model Company_transactions {
+    id String @id @db.VarChar(255)
+
+    company_id String
+    company    Companies @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+    from_user_id String?
+    from_user    Users?  @relation(fields: [from_user_id], references: [id])
+
+    order_id String?
+    order    Orders? @relation(fields: [order_id], references: [id])
+
+    amount Decimal @db.Decimal(18, 2)
+
+    type   CompanyTransactionTypes
+    status TransactionStatuses
+
+    note String?
+
+    created_at  DateTime @default(now())
+    modified_at DateTime @updatedAt
+}
+
+model Orders {
+    id String @id @db.VarChar(255)
+
+    user_id String
+    user    Users  @relation(fields: [user_id], references: [id])
+
+    products Json
+
+    // total Decimal @db.Decimal(18, 2)
+
+    status OrderStatuses
+
+    user_transactions    User_transactions[]
+    company_transactions Company_transactions[]
+
+    created_at  DateTime @default(now())
+    modified_at DateTime @updatedAt
+}
+
+model Carts {
+    id          String   @id @db.VarChar(255)
+    user_id     String   @db.VarChar(255)
+    user        Users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    product_id  String   @db.VarChar(255)
+    product     Products @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    amount      Float    @default(0.0)
+    created_at  DateTime @default(now())
+    modified_at DateTime @updatedAt
+}
+
+model CompanyRecruitments {
+    id                String    @id @db.VarChar(255)
+    title             String
+    description       String
+    requirements      String
+    location          String?
+    salary_range_from String?
+    salary_range_to   String?
+    employment_type   String?
+    created_by        String    @db.VarChar(255)
+    creator           Users     @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    company_id        String    @db.VarChar(255)
+    company           Companies @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    created_at        DateTime  @default(now())
+    modified_at       DateTime  @updatedAt
+}
+
+model CompanyDeliveries {
+    id          String    @id @db.VarChar(255)
+    title       String
+    weight      Float
+    length      Float
+    width       Float
+    height      Float
+    budget      Float
+    created_by  String    @db.VarChar(255)
+    creator     Users     @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    company_id  String    @db.VarChar(255)
+    company     Companies @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    created_at  DateTime  @default(now())
+    modified_at DateTime  @updatedAt
+}
+
+model CompanyScrapes {
+    id         String    @id @db.VarChar(255)
+    name       String
+    quantity   Int
+    unit_type  String    @db.VarChar(100)
+    unit_price Float
+    created_by String    @db.VarChar(255)
+    creator    Users     @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    company_id String    @db.VarChar(255)
+    company    Companies @relation(fields: [company_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Chats {
+    id          String     @id @db.VarChar(255)
+    users       Users[]    @relation("UserChats")
+    messages    Messages[]
+    created_at  DateTime   @default(now())
+    modified_at DateTime   @updatedAt
+}
+
+model Messages {
+    id          String              @id @db.VarChar(255)
+    chat_id     String              @db.VarChar(255)
+    chat        Chats               @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    sender_id   String              @db.VarChar(255)
+    sender      Users               @relation(fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    content     String
+    created_at  DateTime            @default(now())
+    modified_at DateTime            @updatedAt
+    seens       Message_seens[]
+    reactions   Message_reactions[]
+}
+
+model Message_seens {
+    id         String   @id @db.VarChar(255)
+    message_id String   @db.VarChar(255)
+    message    Messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    seen_by_id String   @db.VarChar(255)
+    seen_by    Users    @relation(fields: [seen_by_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    seen_at    DateTime @default(now())
+}
+
+model Message_reactions {
+    id         String   @id @db.VarChar(255)
+    icon       String
+    message_id String   @db.VarChar(255)
+    message    Messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    seen_by_id String   @db.VarChar(255)
+    seen_by    Users    @relation(fields: [seen_by_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+    seen_at    DateTime @default(now())
+}

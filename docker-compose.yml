@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  php:
+    image: php:8.4-fpm
+    container_name: khkt2025-php-fpm
+    volumes:
+      - ./frontend/src:/var/www/html
+    restart: always
+
+  nginx:
+    image: nginx:stable
+    container_name: khkt2025-nginx
+    ports:
+      - "2025:80"
+    env_file:
+      - .env
+    volumes:
+      - ./frontend/src:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - php
+      - ai-service
+    restart: always
+
+  node:
+    build: ./backend
+    container_name: khkt2025-node
+    ports:
+      - "3030:3000"
+      - "5557:5555"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    working_dir: /app
+    command: ["npm", "run", "dev"]
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - ai-service
+
+  ai-service:
+    build: ./ai-service
+    container_name: khkt2025-ai-service
+    ports:
+      - "18182:8001"
+    volumes:
+      - ./ai-service:/app
+    working_dir: /app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+    restart: always
+    env_file:
+      - .env
+
+  db:
+    image: postgres:16
+    container_name: khkt2025-postgres-db
+    restart: always
+    ports:
+      - "18181:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
