@@ -18,7 +18,7 @@ router.get('/login', async (req, res) => {
         client_id: config.GOOGLE_CLIENT_ID,
         redirect_uri: config.OAUTH2_REDIRECT_URI,
         response_type: 'code',
-        scope: 'openid profile email phone_number',
+        scope: 'openid profile email',
         state
     });
 
